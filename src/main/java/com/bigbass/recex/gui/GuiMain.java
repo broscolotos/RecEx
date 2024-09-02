@@ -2,6 +2,8 @@ package com.bigbass.recex.gui;
 
 import net.minecraft.client.gui.GuiButton;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.network.play.server.S02PacketChat;
+import net.minecraft.util.ChatComponentText;
 
 import com.bigbass.recex.RecipeExporterMod;
 import com.bigbass.recex.graphics.Color;
@@ -59,8 +61,28 @@ public class GuiMain extends GuiScreen {
         if (button.equals(exportButton)) {
             RecipeExporterMod.log.info("Export Button Pressed!");
 
-            RecipeExporter.getInst()
-                .run();
+            this.mc.ingameGUI.getChatGUI()
+                .printChatMessage(new ChatComponentText("Started export"));
+
+            Thread thread = new Thread(() -> {
+                long start = System.nanoTime();
+
+                RecipeExporter.getInst()
+                    .run();
+
+                mc.getNetHandler()
+                    .handleChat(
+                        new S02PacketChat(
+                            new ChatComponentText(
+                                String.format("Finished export in %.2fs", (System.nanoTime() - start) / 1e9))));
+            });
+
+            thread.setDaemon(true);
+            thread.setName("recipe export thread");
+
+            thread.start();
+
+            this.mc.displayGuiScreen(null);
         }
     }
 

@@ -8,6 +8,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 
@@ -73,14 +74,39 @@ public class RecipeExporter {
      * </p>
      */
     public void run() {
+        List<GregtechMachine> gtRecipes = getGregtechRecipes();
+        List<ShapedRecipe> shapedRecies = getShapedRecipes();
+        List<ShapelessRecipe> shapelessRecipes = getShapelessRecipes();
+        List<OreDictShapedRecipe> oredictShapedRecipes = getOreDictShapedRecipes();
+
+        emitJson(gtRecipes, shapedRecies, shapelessRecipes, oredictShapedRecipes);
+    }
+
+    private void emitJson(List<GregtechMachine> gtRecipes, List<ShapedRecipe> shapedRecies,
+        List<ShapelessRecipe> shapelessRecipes, List<OreDictShapedRecipe> oredictShapedRecipes) {
         Hashtable<String, Object> root = new Hashtable<String, Object>();
 
         List<Object> sources = new ArrayList<Object>();
-        sources.add(getGregtechRecipes());
-        sources.add(getShapedRecipes());
-        sources.add(getShapelessRecipes());
-        sources.add(getOreDictShapedRecipes());
-        // TODO Support OreDictShapelessRecipes
+
+        HashMap<Object, Object> temp = new HashMap<>();
+        temp.put("type", "gregtech");
+        temp.put("machines", gtRecipes);
+        sources.add(temp);
+
+        temp = new HashMap<>();
+        temp.put("type", "shaped");
+        temp.put("recipes", shapedRecies);
+        sources.add(temp);
+
+        temp = new HashMap<>();
+        temp.put("type", "shapeless");
+        temp.put("recipes", shapelessRecipes);
+        sources.add(temp);
+
+        temp = new HashMap<>();
+        temp.put("type", "shapedOreDict");
+        temp.put("recipes", oredictShapedRecipes);
+        sources.add(temp);
 
         root.put("sources", sources);
 
@@ -106,11 +132,7 @@ public class RecipeExporter {
      * </p>
      */
     @SuppressWarnings("unchecked")
-    private Object getGregtechRecipes() {
-        Hashtable<String, Object> data = new Hashtable<String, Object>();
-
-        data.put("type", "gregtech");
-
+    private List<GregtechMachine> getGregtechRecipes() {
         List<RecipeMap<RecipeMapBackend>> maps = new ArrayList<>();
 
         for (Field field : RecipeMaps.class.getDeclaredFields()) {
@@ -118,13 +140,13 @@ public class RecipeExporter {
                 try {
                     maps.add((RecipeMap<RecipeMapBackend>) field.get(null));
                 } catch (IllegalArgumentException | IllegalAccessException e) {
-                    // TODO Auto-generated catch block
                     e.printStackTrace();
                 }
             }
         }
 
         List<GregtechMachine> machines = new ArrayList<GregtechMachine>();
+
         for (RecipeMap<RecipeMapBackend> map : maps) {
             GregtechMachine mach = new GregtechMachine();
 
@@ -189,19 +211,15 @@ public class RecipeExporter {
             machines.add(mach);
         }
 
-        data.put("machines", machines);
-
-        return data;
+        return machines;
     }
 
-    private Object getShapedRecipes() {
-        Hashtable<String, Object> data = new Hashtable<String, Object>();
-
-        data.put("type", "shaped");
-
+    private List<ShapedRecipe> getShapedRecipes() {
         List<ShapedRecipe> retRecipes = new ArrayList<ShapedRecipe>();
+
         List<?> recipes = CraftingManager.getInstance()
             .getRecipeList();
+
         for (Object obj : recipes) {
             if (obj instanceof ShapedRecipes) {
                 ShapedRecipes original = (ShapedRecipes) obj;
@@ -217,19 +235,16 @@ public class RecipeExporter {
                 retRecipes.add(rec);
             }
         }
-        data.put("recipes", retRecipes);
 
-        return data;
+        return retRecipes;
     }
 
-    private Object getShapelessRecipes() {
-        Hashtable<String, Object> data = new Hashtable<String, Object>();
-
-        data.put("type", "shapeless");
-
+    private List<ShapelessRecipe> getShapelessRecipes() {
         List<ShapelessRecipe> retRecipes = new ArrayList<ShapelessRecipe>();
+
         List<?> recipes = CraftingManager.getInstance()
             .getRecipeList();
+
         for (Object obj : recipes) {
             if (obj instanceof ShapelessRecipes) {
                 ShapelessRecipes original = (ShapelessRecipes) obj;
@@ -248,19 +263,17 @@ public class RecipeExporter {
                 retRecipes.add(rec);
             }
         }
-        data.put("recipes", retRecipes);
 
-        return data;
+        return retRecipes;
     }
 
-    private Object getOreDictShapedRecipes() {
-        Hashtable<String, Object> data = new Hashtable<String, Object>();
-
-        data.put("type", "shapedOreDict");
+    private List<OreDictShapedRecipe> getOreDictShapedRecipes() {
 
         List<OreDictShapedRecipe> retRecipes = new ArrayList<OreDictShapedRecipe>();
+
         List<?> recipes = CraftingManager.getInstance()
             .getRecipeList();
+
         for (Object obj : recipes) {
             if (obj instanceof ShapedOreRecipe) {
                 ShapedOreRecipe original = (ShapedOreRecipe) obj;
@@ -334,13 +347,12 @@ public class RecipeExporter {
                 retRecipes.add(rec);
             }
         }
-        data.put("recipes", retRecipes);
 
-        return data;
+        return retRecipes;
     }
 
     private void saveData(String json) {
-        final File saveFile = getSaveFile();
+        final File saveFile = getSaveFile(".json");
 
         try {
             FileWriter writer = new FileWriter(saveFile);
@@ -370,10 +382,10 @@ public class RecipeExporter {
         }
     }
 
-    private File getSaveFile() {
+    private File getSaveFile(String ext) {
         String dateTime = ZonedDateTime.now(ZoneId.of("UTC"))
             .format(DateTimeFormatter.ofPattern("uuuu-MM-dd_HH-mm-ss"));
-        File file = new File(RecipeExporterMod.clientConfigDir.getParent() + "/RecEx-Records/" + dateTime + ".json");
+        File file = new File(RecipeExporterMod.clientConfigDir.getParent() + "/RecEx-Records/" + dateTime + ext);
         if (!file.exists()) {
             file.getParentFile()
                 .mkdirs();
