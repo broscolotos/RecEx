@@ -38,10 +38,7 @@ dependencies {
 
     implementation('com.github.GTNewHorizons:GT5-Unofficial:5.09.49.47:dev')
 
-	shadow('com.google.code.gson:gson:2.7')
+	implementation('com.google.code.gson:gson:2.7')
 	
-	shadow('javax.json:javax.json-api:1.0')
-	shadow('org.glassfish:javax.json:1.0.4')
-	
-	shadow('net.lingala.zip4j:zip4j:2.3.1')
+	implementation('net.lingala.zip4j:zip4j:2.3.1')
 }

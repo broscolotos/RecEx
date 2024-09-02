@@ -1,14 +1,22 @@
 
+import com.github.jengelman.gradle.plugins.shadow.tasks.ShadowJar
+
 plugins {
     id 'com.gtnewhorizons.gtnhconvention'
     id 'com.github.johnrengelman.shadow'
+    id 'com.gradleup.shadow' version '8.3.0'
 }
 
 shadowJar {
-    enableRelocation true
-}
+  minimize()
 
-tasks.jar {
-  enabled = false
-  dependsOn(tasks.shadowJar)
+  archiveClassifier.set('shadow')
+
+  dependencies {
+    include(dependency('com.google.code.gson:gson'))
+    include(dependency('net.lingala.zip4j:zip4j'))
+  }
+
+  enableRelocation true
+  relocationPrefix "com.bigbass.recex.shadow"
 }
