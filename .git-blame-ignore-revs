@@ -1,0 +1,6 @@
+
+# use this file by running:
+# git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# applied spotless for the first time
+fb72dd89deef9dcceb96465723914731b289b2b3
