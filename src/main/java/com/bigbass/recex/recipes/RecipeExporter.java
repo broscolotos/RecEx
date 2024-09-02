@@ -3,6 +3,7 @@ package com.bigbass.recex.recipes;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -33,6 +34,9 @@ import com.bigbass.recex.recipes.ingredients.ItemOreDict;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import gregtech.api.recipe.RecipeMap;
+import gregtech.api.recipe.RecipeMapBackend;
+import gregtech.api.recipe.RecipeMaps;
 import gregtech.api.util.GT_LanguageManager;
 import gregtech.api.util.GT_Recipe;
 
@@ -101,22 +105,36 @@ public class RecipeExporter {
      * This format does not impede the process of loading the recipes into NEP.
      * </p>
      */
+    @SuppressWarnings("unchecked")
     private Object getGregtechRecipes() {
         Hashtable<String, Object> data = new Hashtable<String, Object>();
 
         data.put("type", "gregtech");
 
+        List<RecipeMap<RecipeMapBackend>> maps = new ArrayList<>();
+
+        for (Field field : RecipeMaps.class.getDeclaredFields()) {
+            if (field.getType() == RecipeMap.class) {
+                try {
+                    maps.add((RecipeMap<RecipeMapBackend>) field.get(null));
+                } catch (IllegalArgumentException | IllegalAccessException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
+            }
+        }
+
         List<GregtechMachine> machines = new ArrayList<GregtechMachine>();
-        for (GT_Recipe_Map map : GT_Recipe_Map.sMappings) {
+        for (RecipeMap<RecipeMapBackend> map : maps) {
             GregtechMachine mach = new GregtechMachine();
 
             // machine name retrieval
-            mach.n = GT_LanguageManager.getTranslation(map.mUnlocalizedName);
+            mach.n = GT_LanguageManager.getTranslation(map.unlocalizedName);
             if (mach.n == null || mach.n.isEmpty()) {
-                mach.n = map.mUnlocalizedName;
+                mach.n = map.unlocalizedName;
             }
 
-            for (GT_Recipe rec : map.mRecipeList) {
+            for (GT_Recipe rec : map.getAllRecipes()) {
                 GregtechRecipe gtr = new GregtechRecipe();
                 gtr.en = rec.mEnabled;
                 gtr.dur = rec.mDuration;

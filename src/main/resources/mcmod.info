@@ -1,10 +1,10 @@
 [
 {
-  "modid": "RecEx",
-  "name": "Recipe Exporter",
+  "modid": "${modId}",
+  "name": "${modName}",
   "description": "Exports all recipes, including GT5U recipes, to JSON files for use in other programs.",
-  "version": "${version}",
-  "mcversion": "${mcversion}",
+  "version": "${modVersion}",
+  "mcversion": "${minecraftVersion}",
   "url": "",
   "updateUrl": "",
   "authorList": ["bigbass1997"],
