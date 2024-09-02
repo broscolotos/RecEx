@@ -20,3 +20,7 @@ shadowJar {
   enableRelocation true
   relocationPrefix "com.bigbass.recex.shadow"
 }
+
+tasks.assemble {
+  dependsOn(tasks.shadowJar)
+}
