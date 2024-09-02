@@ -13,33 +13,33 @@ import cpw.mods.fml.common.event.FMLInitializationEvent;
 import cpw.mods.fml.common.event.FMLPreInitializationEvent;
 
 @Mod(modid = RecipeExporterMod.MODID, version = Tags.VERSION, acceptableRemoteVersions = "*")
-public class RecipeExporterMod
-{
-	public static final String MODID = "RecEx";
-	
-	public static final Logger log = LogManager.getLogger("RecEx");
-	
-	@Mod.Instance(MODID)
-	public static RecipeExporterMod instance;
-	
-	@SidedProxy(clientSide = "com.bigbass.recex.proxy.ClientProxy", serverSide = "com.bigbass.recex.proxy.ServerProxy")
-	public static CommonProxy proxy;
-	
-	public static File clientConfigDir;
-	public static File modConfigDir;
-	
-	@Mod.EventHandler
-	public void preInit(FMLPreInitializationEvent e){
-		clientConfigDir = e.getModConfigurationDirectory();
-		modConfigDir = new File(clientConfigDir.getPath() + "/RecEx");
-		if(!modConfigDir.exists()){
-			modConfigDir.mkdirs();
-		}
-		proxy.preInit(e);
-	}
-	
-	@Mod.EventHandler
-	public void init(FMLInitializationEvent e) {
-		proxy.init(e);
-	}
+public class RecipeExporterMod {
+
+    public static final String MODID = "RecEx";
+
+    public static final Logger log = LogManager.getLogger("RecEx");
+
+    @Mod.Instance(MODID)
+    public static RecipeExporterMod instance;
+
+    @SidedProxy(clientSide = "com.bigbass.recex.proxy.ClientProxy", serverSide = "com.bigbass.recex.proxy.ServerProxy")
+    public static CommonProxy proxy;
+
+    public static File clientConfigDir;
+    public static File modConfigDir;
+
+    @Mod.EventHandler
+    public void preInit(FMLPreInitializationEvent e) {
+        clientConfigDir = e.getModConfigurationDirectory();
+        modConfigDir = new File(clientConfigDir.getPath() + "/RecEx");
+        if (!modConfigDir.exists()) {
+            modConfigDir.mkdirs();
+        }
+        proxy.preInit(e);
+    }
+
+    @Mod.EventHandler
+    public void init(FMLInitializationEvent e) {
+        proxy.init(e);
+    }
 }
