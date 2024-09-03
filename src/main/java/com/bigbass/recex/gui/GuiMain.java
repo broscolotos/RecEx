@@ -67,8 +67,14 @@ public class GuiMain extends GuiScreen {
             Thread thread = new Thread(() -> {
                 long start = System.nanoTime();
 
-                RecipeExporter.getInst()
-                    .run();
+                try {
+                    RecipeExporter.getInst()
+                        .run();
+                } catch (Throwable t) {
+                    t.printStackTrace();
+                    mc.getNetHandler()
+                        .handleChat(new S02PacketChat(new ChatComponentText("Export threw exception: " + t)));
+                }
 
                 mc.getNetHandler()
                     .handleChat(

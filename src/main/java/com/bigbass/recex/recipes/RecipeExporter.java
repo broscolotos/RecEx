@@ -8,9 +8,12 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
+import java.util.stream.Collectors;
 
 import net.lingala.zip4j.ZipFile;
 import net.lingala.zip4j.model.ZipParameters;
@@ -120,6 +123,161 @@ public class RecipeExporter {
         }
     }
 
+    // spotless:off
+    private static final Comparator<net.minecraft.item.Item> COMPARE_ITEM = Comparator.comparingInt(i -> net.minecraft.item.Item.getIdFromItem(i));
+
+    private static final Comparator<ItemStack> COMPARE_ITEM_STACKS =
+        Comparator.comparing((ItemStack s) -> s.getItem(), COMPARE_ITEM)
+        .thenComparingInt((ItemStack s) -> s.getItemDamage())
+        .thenComparingInt((ItemStack s) -> s.stackSize)
+        // Really bad, but idc about performance here because this will be used very rarely if ever
+        .thenComparing((ItemStack s) -> s.stackTagCompound == null ? "" : s.stackTagCompound.toString());
+
+    private static final Comparator<FluidStack> COMPARE_FLUID_STACKS =
+        Comparator.comparingInt((FluidStack s) -> s.getFluid() == null ? -1 : net.minecraftforge.fluids.FluidRegistry.getFluidID(s.getFluid()))
+        .thenComparingInt((FluidStack s) -> s.amount)
+        // Also really bad, but idc about performance because no one uses fluid stack nbt
+        .thenComparing((FluidStack s) -> s.tag == null ? "" : s.tag.toString());
+
+    private static <T> Comparator<T[]> makeArrayComparator(Comparator<T> base) {
+        return (a, b) -> {
+            if(a.length != b.length) {
+                return Integer.compare(a.length, b.length);
+            }
+    
+            for(int i = 0; i < a.length; i++) {
+                T left = a[i], right = b[i];
+
+                if (left == null && right == null) {
+                    continue;
+                }
+
+                if (left == null || right == null) {
+                    return left == null ? -1 : 1;
+                }
+
+                int result = base.compare(left, right);
+
+                if (result != 0) return result;
+            }
+    
+            return 0;
+        };
+    }
+
+    private static <T> Comparator<List<T>> makeListComparator(Comparator<T> base) {
+        return (a, b) -> {
+            if(a.size() != b.size()) {
+                return Integer.compare(a.size(), b.size());
+            }
+    
+            for(int i = 0; i < a.size(); i++) {
+                T left = a.get(i), right = b.get(i);
+
+                if (left == null && right == null) {
+                    continue;
+                }
+
+                if (left == null || right == null) {
+                    return left == null ? -1 : 1;
+                }
+
+                int result = base.compare(left, right);
+    
+                if (result != 0) return result;
+            }
+    
+            return 0;
+        };
+    }
+
+    private static final Comparator<ItemStack[]> COMPARE_ITEM_STACK_ARRAY = makeArrayComparator(COMPARE_ITEM_STACKS);
+    private static final Comparator<FluidStack[]> COMPARE_FLUID_STACK_ARRAY = makeArrayComparator(COMPARE_FLUID_STACKS);
+    private static final Comparator<List<ItemStack>> COMPARE_ITEM_STACK_LIST = makeListComparator(COMPARE_ITEM_STACKS);
+    // private static final Comparator<List<FluidStack>> COMPARE_FLUID_STACK_LIST = makeListComparator(COMPARE_FLUID_STACKS);
+
+    // super cursed and probably stupidly slow, but it works
+    private static final Comparator<GT_Recipe> COMPARE_RECIPE =
+        Comparator.comparingInt((GT_Recipe r) -> r.mEUt)
+        .thenComparingInt((GT_Recipe r) -> r.mDuration)
+        .thenComparingInt((GT_Recipe r) -> r.mSpecialValue)
+        .thenComparing((GT_Recipe r) -> r.mInputs, COMPARE_ITEM_STACK_ARRAY)
+        .thenComparing((GT_Recipe r) -> r.mFluidInputs, COMPARE_FLUID_STACK_ARRAY)
+        .thenComparing((GT_Recipe r) -> r.mOutputs, COMPARE_ITEM_STACK_ARRAY)
+        .thenComparing((GT_Recipe r) -> r.mFluidOutputs, COMPARE_FLUID_STACK_ARRAY);
+
+    // spotless:on
+
+    private static ItemStack[] clean(ItemStack[] stacks) {
+        int len = 0;
+
+        for (int i = 0; i < stacks.length; i++) {
+            if (stacks[i] != null) len++;
+        }
+
+        ItemStack[] out = new ItemStack[len];
+        int next = 0;
+
+        for (int i = 0; i < stacks.length; i++) {
+            ItemStack x = stacks[i];
+
+            if (x != null) {
+                out[next++] = x.copy();
+            }
+        }
+
+        Arrays.sort(out, COMPARE_ITEM_STACKS);
+
+        return out;
+    }
+
+    private static FluidStack[] clean(FluidStack[] stacks) {
+        int len = 0;
+
+        for (int i = 0; i < stacks.length; i++) {
+            if (stacks[i] != null) len++;
+        }
+
+        FluidStack[] out = new FluidStack[len];
+        int next = 0;
+
+        for (int i = 0; i < stacks.length; i++) {
+            FluidStack x = stacks[i];
+
+            if (x != null) {
+                out[next++] = x.copy();
+            }
+        }
+
+        Arrays.sort(out, COMPARE_FLUID_STACKS);
+
+        return out;
+    }
+
+    private static GT_Recipe cloneAndSort(GT_Recipe recipe) {
+        GT_Recipe out = new GT_Recipe(null, null, null, null, null, 0, 0);
+
+        out.mSpecialItems = recipe.mSpecialItems;
+        out.mChances = recipe.mChances;
+        out.mDuration = recipe.mDuration;
+        out.mSpecialValue = recipe.mSpecialValue;
+        out.mEUt = recipe.mEUt;
+        out.mNeedsEmptyOutput = recipe.mNeedsEmptyOutput;
+        out.isNBTSensitive = recipe.isNBTSensitive;
+        out.mCanBeBuffered = recipe.mCanBeBuffered;
+        out.mFakeRecipe = recipe.mFakeRecipe;
+        out.mEnabled = recipe.mEnabled;
+        out.mHidden = recipe.mHidden;
+
+        out.mInputs = clean(recipe.mInputs);
+        out.mOutputs = clean(recipe.mOutputs);
+
+        out.mFluidInputs = clean(recipe.mFluidInputs);
+        out.mFluidOutputs = clean(recipe.mFluidOutputs);
+
+        return out;
+    }
+
     /**
      * <p>
      * Unlike vanilla recipes, the current schema here groups recipes from each machine together.
@@ -156,7 +314,17 @@ public class RecipeExporter {
                 mach.n = map.unlocalizedName;
             }
 
-            for (GT_Recipe rec : map.getAllRecipes()) {
+            RecipeExporterMod.log.info("Processing recipe map " + mach.n);
+
+            List<GT_Recipe> recipes = map.getAllRecipes()
+                .stream()
+                .map(RecipeExporter::cloneAndSort)
+                .sorted(COMPARE_RECIPE)
+                .collect(Collectors.toList());
+
+            RecipeExporterMod.log.info("Finished sorting recipes for map " + mach.n);
+
+            for (GT_Recipe rec : recipes) {
                 GregtechRecipe gtr = new GregtechRecipe();
                 gtr.en = rec.mEnabled;
                 gtr.dur = rec.mDuration;
@@ -217,23 +385,28 @@ public class RecipeExporter {
     private List<ShapedRecipe> getShapedRecipes() {
         List<ShapedRecipe> retRecipes = new ArrayList<ShapedRecipe>();
 
-        List<?> recipes = CraftingManager.getInstance()
-            .getRecipeList();
+        // spotless:off
+        List<ShapedRecipes> recipes = CraftingManager.getInstance()
+            .getRecipeList()
+            .stream()
+            .filter(r -> r instanceof ShapedRecipes)
+            .map(r -> (ShapedRecipes)r)
+            .sorted(Comparator.comparing((ShapedRecipes r) -> r.recipeItems, COMPARE_ITEM_STACK_ARRAY)
+                .thenComparing((ShapedRecipes r) -> r.getRecipeOutput(), COMPARE_ITEM_STACKS))
+            .collect(Collectors.toList());
+        // spotless:on
 
-        for (Object obj : recipes) {
-            if (obj instanceof ShapedRecipes) {
-                ShapedRecipes original = (ShapedRecipes) obj;
-                ShapedRecipe rec = new ShapedRecipe();
+        for (ShapedRecipes original : recipes) {
+            ShapedRecipe rec = new ShapedRecipe();
 
-                for (ItemStack stack : original.recipeItems) {
-                    Item item = RecipeUtil.formatRegularItemStack(stack);
-                    rec.iI.add(item);
-                }
-
-                rec.o = RecipeUtil.formatRegularItemStack(original.getRecipeOutput());
-
-                retRecipes.add(rec);
+            for (ItemStack stack : original.recipeItems) {
+                Item item = RecipeUtil.formatRegularItemStack(stack);
+                rec.iI.add(item);
             }
+
+            rec.o = RecipeUtil.formatRegularItemStack(original.getRecipeOutput());
+
+            retRecipes.add(rec);
         }
 
         return retRecipes;
@@ -242,110 +415,179 @@ public class RecipeExporter {
     private List<ShapelessRecipe> getShapelessRecipes() {
         List<ShapelessRecipe> retRecipes = new ArrayList<ShapelessRecipe>();
 
-        List<?> recipes = CraftingManager.getInstance()
-            .getRecipeList();
+        // spotless:off
+        List<ShapelessRecipes> recipes = CraftingManager.getInstance()
+            .getRecipeList()
+            .stream()
+            .filter(r -> r instanceof ShapelessRecipes)
+            .map(r -> (ShapelessRecipes)r)
+            .map(r -> new ShapelessRecipes(
+                r.getRecipeOutput(),
+                r.recipeItems.stream()
+                    .sorted(COMPARE_ITEM_STACKS)
+                    .collect(Collectors.toList())
+            ))
+            .sorted(
+                Comparator.comparing((ShapelessRecipes r) -> r.recipeItems, COMPARE_ITEM_STACK_LIST)
+                    .thenComparing((ShapelessRecipes r) -> r.getRecipeOutput(), COMPARE_ITEM_STACKS)
+            )
+            .collect(Collectors.toList());
+        // spotless:on
 
-        for (Object obj : recipes) {
-            if (obj instanceof ShapelessRecipes) {
-                ShapelessRecipes original = (ShapelessRecipes) obj;
-                ShapelessRecipe rec = new ShapelessRecipe();
+        for (ShapelessRecipes original : recipes) {
+            ShapelessRecipe rec = new ShapelessRecipe();
 
-                for (Object stack : original.recipeItems) {
-                    if (stack instanceof ItemStack) {
-                        rec.iI.add(RecipeUtil.formatRegularItemStack((ItemStack) stack));
-                    } else if (stack instanceof net.minecraft.item.Item) {
-                        rec.iI.add(RecipeUtil.formatRegularItemStack(new ItemStack((net.minecraft.item.Item) stack)));
-                    }
-                }
+            rec.iI = original.recipeItems.stream()
+                .sorted(COMPARE_ITEM_STACKS)
+                .map(RecipeUtil::formatRegularItemStack)
+                .toArray(Item[]::new);
 
-                rec.o = RecipeUtil.formatRegularItemStack(original.getRecipeOutput());
+            rec.o = RecipeUtil.formatRegularItemStack(original.getRecipeOutput());
 
-                retRecipes.add(rec);
-            }
+            retRecipes.add(rec);
         }
 
         return retRecipes;
     }
 
+    private static class OredictInput {
+
+        public final Class<?> type;
+        public final Comparator<?> comparator;
+
+        public <T> OredictInput(Class<T> type, Comparator<T> comparator) {
+            this.type = type;
+            this.comparator = comparator;
+        }
+    }
+
+    // spotless:off
+    @SuppressWarnings({ "rawtypes", "unchecked" })
+    private static final OredictInput[] OREDICT_INPUTS = new OredictInput[] {
+        new OredictInput(ItemStack.class, COMPARE_ITEM_STACKS),
+        new OredictInput(String.class, (String a, String b) -> a.compareTo(b)),
+        new OredictInput(String[].class, makeArrayComparator((String a, String b) -> a.compareTo(b))),
+        new OredictInput(net.minecraft.item.Item.class, COMPARE_ITEM),
+        new OredictInput(List.class, makeListComparator((Comparator)COMPARE_ITEM_STACKS)),
+        new OredictInput(ItemStack[].class, COMPARE_ITEM_STACK_ARRAY),
+    };
+    // spotless:on
+
+    private static int getInputType(Object x) {
+        if (x == null) {
+            return -1;
+        }
+
+        for (int i = 0; i < OREDICT_INPUTS.length; i++) {
+            if (OREDICT_INPUTS[i].type.isAssignableFrom(x.getClass())) {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static final Comparator<Object> COMPARE_OREDICT_INPUT = (Object a, Object b) -> {
+        int ai = getInputType(a), bi = getInputType(b);
+
+        if (ai != bi || ai == -1 || bi == -1) {
+            return Integer.compare(ai, bi);
+        }
+
+        @SuppressWarnings("unchecked")
+        Comparator<Object> c = (Comparator<Object>) OREDICT_INPUTS[ai].comparator;
+
+        return c == null ? 0 : c.compare(a, b);
+    };
+
+    private static final Comparator<Object[]> COMPARE_OREDICT_INPUT_LIST = makeArrayComparator(COMPARE_OREDICT_INPUT);
+
     private List<OreDictShapedRecipe> getOreDictShapedRecipes() {
 
         List<OreDictShapedRecipe> retRecipes = new ArrayList<OreDictShapedRecipe>();
 
-        List<?> recipes = CraftingManager.getInstance()
-            .getRecipeList();
+        // spotless:off
+        List<ShapedOreRecipe> recipes = CraftingManager.getInstance()
+            .getRecipeList()
+            .stream()
+            .filter(r -> r instanceof ShapedOreRecipe)
+            .map(r -> (ShapedOreRecipe)r)
+            .sorted(
+                Comparator.comparing(ShapedOreRecipe::getInput, COMPARE_OREDICT_INPUT_LIST)
+                    .thenComparing((ShapedOreRecipe r) -> r.getRecipeOutput(), COMPARE_ITEM_STACKS)
+            )
+            .collect(Collectors.toList());
+        // spotless:on
 
-        for (Object obj : recipes) {
-            if (obj instanceof ShapedOreRecipe) {
-                ShapedOreRecipe original = (ShapedOreRecipe) obj;
-                OreDictShapedRecipe rec = new OreDictShapedRecipe();
+        for (ShapedOreRecipe original : recipes) {
+            OreDictShapedRecipe rec = new OreDictShapedRecipe();
 
-                for (Object input : original.getInput()) {
-                    if (input instanceof ItemStack) {
-                        rec.iI.add(RecipeUtil.formatRegularItemStack((ItemStack) input));
-                    } else if (input instanceof String) {
-                        ItemOreDict item = RecipeUtil.parseOreDictionary((String) input);
-                        if (item != null) {
-                            rec.iI.add(item);
-                            RecipeExporterMod.log.info("input instanceof String : " + item.dns + ", " + item.ims);
-                        }
-                    } else if (input instanceof String[]) {
-                        ItemOreDict item = RecipeUtil.parseOreDictionary((String[]) input);
-                        if (item != null) {
-                            rec.iI.add(item);
-                            RecipeExporterMod.log.info("input instanceof String[] : " + item.dns + ", " + item.ims);
-                        }
-                    } else if (input instanceof net.minecraft.item.Item) {
-                        rec.iI.add(RecipeUtil.formatRegularItemStack(new ItemStack((net.minecraft.item.Item) input)));
-                    } else if (input instanceof Block) {
-                        rec.iI.add(RecipeUtil.formatRegularItemStack(new ItemStack((Block) input, 1, Short.MAX_VALUE)));
-                    } else if (input instanceof ArrayList<?>) {
-                        ArrayList<?> list = (ArrayList<?>) input;
-                        if (list != null && list.size() > 0) {
-                            ItemOreDict item = new ItemOreDict();
-                            for (Object listObj : list) {
-                                if (listObj instanceof ItemStack) {
-                                    ItemStack stack = (ItemStack) listObj;
-                                    item.ims.add(RecipeUtil.formatRegularItemStack(stack));
+            for (Object input : original.getInput()) {
+                if (input instanceof ItemStack) {
+                    rec.iI.add(RecipeUtil.formatRegularItemStack((ItemStack) input));
+                } else if (input instanceof String) {
+                    ItemOreDict item = RecipeUtil.parseOreDictionary((String) input);
+                    if (item != null) {
+                        rec.iI.add(item);
+                        RecipeExporterMod.log.info("input instanceof String : " + item.dns + ", " + item.ims);
+                    }
+                } else if (input instanceof String[]) {
+                    ItemOreDict item = RecipeUtil.parseOreDictionary((String[]) input);
+                    if (item != null) {
+                        rec.iI.add(item);
+                        RecipeExporterMod.log.info("input instanceof String[] : " + item.dns + ", " + item.ims);
+                    }
+                } else if (input instanceof net.minecraft.item.Item) {
+                    rec.iI.add(RecipeUtil.formatRegularItemStack(new ItemStack((net.minecraft.item.Item) input)));
+                } else if (input instanceof Block) {
+                    rec.iI.add(RecipeUtil.formatRegularItemStack(new ItemStack((Block) input, 1, Short.MAX_VALUE)));
+                } else if (input instanceof ArrayList<?>) {
+                    ArrayList<?> list = (ArrayList<?>) input;
+                    if (list != null && list.size() > 0) {
+                        ItemOreDict item = new ItemOreDict();
+                        for (Object listObj : list) {
+                            if (listObj instanceof ItemStack) {
+                                ItemStack stack = (ItemStack) listObj;
+                                item.ims.add(RecipeUtil.formatRegularItemStack(stack));
 
-                                    int[] ids = OreDictionary.getOreIDs(stack);
-                                    for (int id : ids) {
-                                        String name = OreDictionary.getOreName(id);
-                                        if (name != null && !name.isEmpty() && !name.equalsIgnoreCase("Unknown")) {
-                                            boolean isDuplicate = false;
-                                            for (String existing : item.dns) {
-                                                if (existing.equalsIgnoreCase(name)) {
-                                                    isDuplicate = true;
-                                                    break;
-                                                }
+                                int[] ids = OreDictionary.getOreIDs(stack);
+                                for (int id : ids) {
+                                    String name = OreDictionary.getOreName(id);
+                                    if (name != null && !name.isEmpty() && !name.equalsIgnoreCase("Unknown")) {
+                                        boolean isDuplicate = false;
+                                        for (String existing : item.dns) {
+                                            if (existing.equalsIgnoreCase(name)) {
+                                                isDuplicate = true;
+                                                break;
                                             }
-                                            if (!isDuplicate) {
-                                                item.dns.add(name);
-                                            }
+                                        }
+                                        if (!isDuplicate) {
+                                            item.dns.add(name);
                                         }
                                     }
                                 }
                             }
-
-                            if (!item.ims.isEmpty()) {
-                                rec.iI.add(item);
-                            }
                         }
-                    } else if (input != null) {
-                        try {
-                            RecipeExporterMod.log.warn(
-                                "OreDict Input Type not parsed! " + input.getClass()
-                                    .getTypeName()
-                                    + " | "
-                                    + input.getClass()
-                                        .getName());
-                        } catch (NullPointerException e) {}
+
+                        if (!item.ims.isEmpty()) {
+                            rec.iI.add(item);
+                        }
                     }
+                } else if (input != null) {
+                    try {
+                        RecipeExporterMod.log.warn(
+                            "OreDict Input Type not parsed! " + input.getClass()
+                                .getTypeName()
+                                + " | "
+                                + input.getClass()
+                                    .getName());
+                    } catch (NullPointerException e) {}
                 }
-
-                rec.o = RecipeUtil.formatRegularItemStack(original.getRecipeOutput());
-
-                retRecipes.add(rec);
             }
+
+            rec.o = RecipeUtil.formatRegularItemStack(original.getRecipeOutput());
+
+            retRecipes.add(rec);
         }
 
         return retRecipes;

@@ -5,6 +5,9 @@ public class Item implements IItem {
     /** amount */
     public int a;
 
+    /** damage */
+    public int m;
+
     /** unlocalizedName */
     public String uN;
 
@@ -15,8 +18,9 @@ public class Item implements IItem {
 
     }
 
-    public Item(int amount, String unlocalizedName, String displayName) {
+    public Item(int amount, int damage, String unlocalizedName, String displayName) {
         this.a = amount;
+        this.m = damage;
         this.uN = unlocalizedName;
         this.lN = displayName;
     }

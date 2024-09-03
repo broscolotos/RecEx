@@ -12,7 +12,7 @@ public class ItemProgrammedCircuit extends Item {
     }
 
     public ItemProgrammedCircuit(Item item, int cfg) {
-        super(item.a, item.uN, item.lN);
+        super(item.a, cfg, item.uN, item.lN);
 
         this.cfg = cfg;
     }

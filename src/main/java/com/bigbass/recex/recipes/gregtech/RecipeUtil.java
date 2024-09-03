@@ -24,6 +24,7 @@ public class RecipeUtil {
         Item item = new Item();
 
         item.a = stack.stackSize;
+        item.m = stack.getItemDamage();
         try {
             item.uN = stack.getUnlocalizedName();
         } catch (Exception e) {}
