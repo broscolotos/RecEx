@@ -3,6 +3,7 @@ package com.bigbass.recex.recipes.gregtech;
 import java.util.ArrayList;
 import java.util.List;
 
+import net.minecraft.block.material.Material;
 import net.minecraft.item.ItemStack;
 import net.minecraftforge.fluids.FluidStack;
 import net.minecraftforge.oredict.OreDictionary;
@@ -12,21 +13,22 @@ import com.bigbass.recex.recipes.ingredients.Item;
 import com.bigbass.recex.recipes.ingredients.ItemOreDict;
 
 import cpw.mods.fml.common.registry.GameRegistry;
-import gregtech.api.util.GTLanguageManager;
 
 public class RecipeUtil {
 
     public static Item formatRegularItemStack(ItemStack stack) {
-        if (stack == null) {
+        if (stack == null || stack.getItem() == null) {
             return null;
         }
 
         Item item = new Item();
-
+        try {
         item.a = stack.stackSize;
-        item.m = stack.getItemDamage();
-        item.nbt = stack.hasTagCompound() ? stack.getTagCompound()
-            .toString() : null;
+            item.m = stack.getItemDamageForDisplay();
+            item.nbt = stack.hasTagCompound() ? stack.getTagCompound()
+                .toString() : null;
+        } catch (NullPointerException ignored) {
+        }
         try {
             GameRegistry.UniqueIdentifier uniqueIdentifier = GameRegistry.findUniqueIdentifierFor(stack.getItem());
             if (uniqueIdentifier != null) {
@@ -34,40 +36,10 @@ public class RecipeUtil {
             } else {
                 item.id = stack.getUnlocalizedName();
             }
-        } catch (Exception e) {}
+        } catch (Exception ignored) {}
         try {
             item.lN = stack.getDisplayName();
-        } catch (Exception e) {}
-
-        return item;
-    }
-
-    public static Item formatGregtechItemStack(ItemStack stack) {
-        if (stack == null) {
-            return null;
-        }
-
-        Item item = new Item();
-
-        item.a = stack.stackSize;
-        item.m = stack.getItemDamage();
-        item.nbt = stack.hasTagCompound() ? stack.getTagCompound()
-            .toString() : null;
-        try {
-            GameRegistry.UniqueIdentifier uniqueIdentifier = GameRegistry.findUniqueIdentifierFor(stack.getItem());
-            if (uniqueIdentifier != null) {
-                item.id = uniqueIdentifier.toString();
-            } else {
-                item.id = stack.getUnlocalizedName();
-            }
-        } catch (Exception e) {}
-        try {
-            item.lN = stack.getDisplayName();
-        } catch (Exception e1) {
-            try {
-                item.lN = GTLanguageManager.getTranslation(stack.getUnlocalizedName());
-            } catch (Exception e2) {}
-        }
+        } catch (Exception ignored) {}
 
         return item;
     }
@@ -131,18 +103,13 @@ public class RecipeUtil {
                 .getName();
         } catch (Exception e) {}
         try {
-            fluid.lN = GTLanguageManager.getTranslation(stack.getUnlocalizedName());
-        } catch (Exception e1) {
+            fluid.lN = stack.getFluid()
+                .getName();
+        } catch (Exception e2) {
             try {
-                fluid.lN = stack.getFluid()
-                    .getName();
-            } catch (Exception e2) {
-                try {
-                    fluid.lN = stack.getLocalizedName();
-                } catch (Exception e3) {}
-            }
+                fluid.lN = stack.getLocalizedName();
+            } catch (Exception e3) {}
         }
-
         return fluid;
     }
 

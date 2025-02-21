@@ -3,7 +3,6 @@ package com.bigbass.recex.recipes;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -29,20 +28,12 @@ import net.minecraftforge.oredict.OreDictionary;
 import net.minecraftforge.oredict.ShapedOreRecipe;
 
 import com.bigbass.recex.RecipeExporterMod;
-import com.bigbass.recex.recipes.gregtech.GregtechMachine;
-import com.bigbass.recex.recipes.gregtech.GregtechRecipe;
 import com.bigbass.recex.recipes.gregtech.RecipeUtil;
-import com.bigbass.recex.recipes.ingredients.Fluid;
 import com.bigbass.recex.recipes.ingredients.Item;
 import com.bigbass.recex.recipes.ingredients.ItemOreDict;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-import gregtech.api.recipe.RecipeMap;
-import gregtech.api.recipe.RecipeMapBackend;
-import gregtech.api.recipe.RecipeMaps;
-import gregtech.api.util.GTLanguageManager;
-import gregtech.api.util.GTRecipe;
 
 public class RecipeExporter {
 
@@ -77,24 +68,20 @@ public class RecipeExporter {
      * </p>
      */
     public void run() {
-        List<GregtechMachine> gtRecipes = getGregtechRecipes();
         List<ShapedRecipe> shapedRecies = getShapedRecipes();
         List<ShapelessRecipe> shapelessRecipes = getShapelessRecipes();
         List<OreDictShapedRecipe> oredictShapedRecipes = getOreDictShapedRecipes();
 
-        emitJson(gtRecipes, shapedRecies, shapelessRecipes, oredictShapedRecipes);
+        emitJson(shapedRecies, shapelessRecipes, oredictShapedRecipes);
     }
 
-    private void emitJson(List<GregtechMachine> gtRecipes, List<ShapedRecipe> shapedRecies,
+    private void emitJson(List<ShapedRecipe> shapedRecies,
         List<ShapelessRecipe> shapelessRecipes, List<OreDictShapedRecipe> oredictShapedRecipes) {
         Hashtable<String, Object> root = new Hashtable<String, Object>();
 
         List<Object> sources = new ArrayList<Object>();
 
-        HashMap<Object, Object> temp = new HashMap<>();
-        temp.put("type", "gregtech");
-        temp.put("machines", gtRecipes);
-        sources.add(temp);
+        HashMap<Object, Object> temp;
 
         temp = new HashMap<>();
         temp.put("type", "shaped");
@@ -127,8 +114,8 @@ public class RecipeExporter {
 
     private static final Comparator<ItemStack> COMPARE_ITEM_STACKS =
         Comparator.comparing((ItemStack s) -> s.getItem(), COMPARE_ITEM)
-        .thenComparingInt((ItemStack s) -> s.getItemDamage())
-        .thenComparingInt((ItemStack s) -> s.stackSize)
+        .thenComparingInt((ItemStack s) -> s.getItem() != null ? s.getItemDamage() : 1)
+        .thenComparingInt((ItemStack s) -> s.getItem() != null ? s.stackSize : 1)
         // Really bad, but idc about performance here because this will be used very rarely if ever
         .thenComparing((ItemStack s) -> s.stackTagCompound == null ? "" : s.stackTagCompound.toString());
 
@@ -195,16 +182,6 @@ public class RecipeExporter {
     private static final Comparator<List<ItemStack>> COMPARE_ITEM_STACK_LIST = makeListComparator(COMPARE_ITEM_STACKS);
     // private static final Comparator<List<FluidStack>> COMPARE_FLUID_STACK_LIST = makeListComparator(COMPARE_FLUID_STACKS);
 
-    // super cursed and probably stupidly slow, but it works
-    private static final Comparator<GTRecipe> COMPARE_RECIPE =
-        Comparator.comparingInt((GTRecipe r) -> r.mEUt)
-        .thenComparingInt((GTRecipe r) -> r.mDuration)
-        .thenComparingInt((GTRecipe r) -> r.mSpecialValue)
-        .thenComparing((GTRecipe r) -> r.mInputs, COMPARE_ITEM_STACK_ARRAY)
-        .thenComparing((GTRecipe r) -> r.mFluidInputs, COMPARE_FLUID_STACK_ARRAY)
-        .thenComparing((GTRecipe r) -> r.mOutputs, COMPARE_ITEM_STACK_ARRAY)
-        .thenComparing((GTRecipe r) -> r.mFluidOutputs, COMPARE_FLUID_STACK_ARRAY);
-
     // spotless:on
 
     private static ItemStack[] clean(ItemStack[] stacks) {
@@ -253,30 +230,6 @@ public class RecipeExporter {
         return out;
     }
 
-    private static GTRecipe cloneAndSort(GTRecipe recipe) {
-        GTRecipe out = new GTRecipe(null, null, null, null, null, 0, 0);
-
-        out.mSpecialItems = recipe.mSpecialItems;
-        out.mChances = recipe.mChances;
-        out.mDuration = recipe.mDuration;
-        out.mSpecialValue = recipe.mSpecialValue;
-        out.mEUt = recipe.mEUt;
-        out.mNeedsEmptyOutput = recipe.mNeedsEmptyOutput;
-        out.isNBTSensitive = recipe.isNBTSensitive;
-        out.mCanBeBuffered = recipe.mCanBeBuffered;
-        out.mFakeRecipe = recipe.mFakeRecipe;
-        out.mEnabled = recipe.mEnabled;
-        out.mHidden = recipe.mHidden;
-
-        out.mInputs = clean(recipe.mInputs);
-        out.mOutputs = clean(recipe.mOutputs);
-
-        out.mFluidInputs = clean(recipe.mFluidInputs);
-        out.mFluidOutputs = clean(recipe.mFluidOutputs);
-
-        return out;
-    }
-
     /**
      * <p>
      * Unlike vanilla recipes, the current schema here groups recipes from each machine together.
@@ -289,97 +242,6 @@ public class RecipeExporter {
      * </p>
      */
     @SuppressWarnings("unchecked")
-    private List<GregtechMachine> getGregtechRecipes() {
-        List<RecipeMap<RecipeMapBackend>> maps = new ArrayList<>();
-
-        for (Field field : RecipeMaps.class.getDeclaredFields()) {
-            if (field.getType() == RecipeMap.class) {
-                try {
-                    maps.add((RecipeMap<RecipeMapBackend>) field.get(null));
-                } catch (IllegalArgumentException | IllegalAccessException e) {
-                    e.printStackTrace();
-                }
-            }
-        }
-
-        List<GregtechMachine> machines = new ArrayList<GregtechMachine>();
-
-        for (RecipeMap<RecipeMapBackend> map : maps) {
-            GregtechMachine mach = new GregtechMachine();
-
-            // machine name retrieval
-            mach.n = GTLanguageManager.getTranslation(map.unlocalizedName);
-            if (mach.n == null || mach.n.isEmpty()) {
-                mach.n = map.unlocalizedName;
-            }
-
-            RecipeExporterMod.log.info("Processing recipe map " + mach.n);
-
-            List<GTRecipe> recipes = map.getAllRecipes()
-                .stream()
-                .map(RecipeExporter::cloneAndSort)
-                .sorted(COMPARE_RECIPE)
-                .collect(Collectors.toList());
-
-            RecipeExporterMod.log.info("Finished sorting recipes for map " + mach.n);
-
-            for (GTRecipe rec : recipes) {
-                GregtechRecipe gtr = new GregtechRecipe();
-                gtr.en = rec.mEnabled;
-                gtr.dur = rec.mDuration;
-                gtr.eut = rec.mEUt;
-
-                // item inputs
-                for (ItemStack stack : rec.mInputs) {
-                    Item item = RecipeUtil.formatGregtechItemStack(stack);
-
-                    if (item == null) {
-                        continue;
-                    }
-
-                    gtr.iI.add(item);
-                }
-
-                // item outputs
-                for (ItemStack stack : rec.mOutputs) {
-                    Item item = RecipeUtil.formatGregtechItemStack(stack);
-
-                    if (item == null) {
-                        continue;
-                    }
-
-                    gtr.iO.add(item);
-                }
-
-                // fluid inputs
-                for (FluidStack stack : rec.mFluidInputs) {
-                    Fluid fluid = RecipeUtil.formatGregtechFluidStack(stack);
-
-                    if (fluid == null) {
-                        continue;
-                    }
-
-                    gtr.fI.add(fluid);
-                }
-
-                // fluid outputs
-                for (FluidStack stack : rec.mFluidOutputs) {
-                    Fluid fluid = RecipeUtil.formatGregtechFluidStack(stack);
-
-                    if (fluid == null) {
-                        continue;
-                    }
-
-                    gtr.fO.add(fluid);
-                }
-
-                mach.recs.add(gtr);
-            }
-            machines.add(mach);
-        }
-
-        return machines;
-    }
 
     private List<ShapedRecipe> getShapedRecipes() {
         List<ShapedRecipe> retRecipes = new ArrayList<ShapedRecipe>();
